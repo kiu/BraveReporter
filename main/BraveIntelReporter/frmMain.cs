@@ -221,7 +221,10 @@ namespace BraveIntelReporter
             string monitoring = string.Empty;
             foreach (FileInfo fi in roomToFile.Values)
             {
-                monitoring += fi.Name + ", ";
+                if (fi != null)
+                {
+                    monitoring += fi.Name + ", ";
+                }
             }
             if (monitoring.Length > 2)
             {
@@ -260,11 +263,20 @@ namespace BraveIntelReporter
                     fnNew = fiNew.FullName;
                 }
 
-                if (fnLast != fnNew)
+                if (fnLast == fnNew)
+                {
+                    return;
+                }
+
+                if (fiNew != null)
                 {
                     roomToFile[room] = fiNew;
-                    fileToOffset.Remove(fnLast);
                 }
+                else
+                {
+                    roomToFile.Remove(room);
+                }
+                fileToOffset.Remove(fnLast);
             }
         }
 
