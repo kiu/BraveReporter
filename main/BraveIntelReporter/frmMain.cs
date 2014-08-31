@@ -198,17 +198,17 @@ namespace BraveIntelReporter
                 }
             }
 
-            if (state == STATE.RUNNING && last < DateTime.Now.AddMinutes(-1))
-            {
-                appendVerbose(Color.DarkBlue, "Nothing happened, sending ping!");
-                sendStatus("ping");
-            }
-
             if (state != STATE.STOPPED && roomToFile.Count() == 0)
             {
                 state = STATE.STOPPED;
                 appendText(Color.DarkRed, "No active intel file found, sleeping... ");
                 sendStatus("stop");
+            }
+
+            if (state == STATE.RUNNING && last < DateTime.Now.AddMinutes(-1))
+            {
+                appendVerbose(Color.DarkBlue, "Nothing happened, sending ping!");
+                sendStatus("ping");
             }
 
             if (state != STATE.RUNNING && roomToFile.Count() > 0)
@@ -242,7 +242,7 @@ namespace BraveIntelReporter
                 if (last > DateTime.Now.AddMinutes(-1))
                 {
                     Debug.WriteLine("Room " + room + " is up-to-date, skipping.");
-                    //continue;
+                    continue;
                 }
 
                 FileInfo fiLast = null;
