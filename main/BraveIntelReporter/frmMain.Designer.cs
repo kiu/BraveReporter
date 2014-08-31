@@ -30,7 +30,6 @@
         {
             this.components = new System.ComponentModel.Container();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(frmMain));
-            this.txtIntel = new System.Windows.Forms.TextBox();
             this.label1 = new System.Windows.Forms.Label();
             this.label2 = new System.Windows.Forms.Label();
             this.lblReported = new System.Windows.Forms.Label();
@@ -47,27 +46,15 @@
             this.mnuSetEveToBackground = new System.Windows.Forms.ToolStripMenuItem();
             this.optionsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.aboutToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.rtbIntel = new System.Windows.Forms.RichTextBox();
             this.menuStrip1.SuspendLayout();
             this.SuspendLayout();
-            // 
-            // txtIntel
-            // 
-            this.txtIntel.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-            this.txtIntel.Location = new System.Drawing.Point(10, 27);
-            this.txtIntel.Multiline = true;
-            this.txtIntel.Name = "txtIntel";
-            this.txtIntel.ReadOnly = true;
-            this.txtIntel.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
-            this.txtIntel.Size = new System.Drawing.Size(606, 335);
-            this.txtIntel.TabIndex = 0;
             // 
             // label1
             // 
             this.label1.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
             this.label1.AutoSize = true;
-            this.label1.Location = new System.Drawing.Point(12, 365);
+            this.label1.Location = new System.Drawing.Point(12, 141);
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(57, 13);
             this.label1.TabIndex = 1;
@@ -77,7 +64,7 @@
             // 
             this.label2.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
             this.label2.AutoSize = true;
-            this.label2.Location = new System.Drawing.Point(12, 390);
+            this.label2.Location = new System.Drawing.Point(12, 166);
             this.label2.Name = "label2";
             this.label2.Size = new System.Drawing.Size(41, 13);
             this.label2.TabIndex = 2;
@@ -87,7 +74,7 @@
             // 
             this.lblReported.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
             this.lblReported.AutoSize = true;
-            this.lblReported.Location = new System.Drawing.Point(75, 365);
+            this.lblReported.Location = new System.Drawing.Point(75, 141);
             this.lblReported.Name = "lblReported";
             this.lblReported.Size = new System.Drawing.Size(13, 13);
             this.lblReported.TabIndex = 3;
@@ -97,7 +84,7 @@
             // 
             this.lblFailed.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
             this.lblFailed.AutoSize = true;
-            this.lblFailed.Location = new System.Drawing.Point(75, 390);
+            this.lblFailed.Location = new System.Drawing.Point(75, 166);
             this.lblFailed.Name = "lblFailed";
             this.lblFailed.Size = new System.Drawing.Size(13, 13);
             this.lblFailed.TabIndex = 4;
@@ -114,7 +101,7 @@
             // 
             this.label3.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
             this.label3.AutoSize = true;
-            this.label3.Location = new System.Drawing.Point(176, 365);
+            this.label3.Location = new System.Drawing.Point(176, 141);
             this.label3.Name = "label3";
             this.label3.Size = new System.Drawing.Size(86, 13);
             this.label3.TabIndex = 5;
@@ -124,7 +111,7 @@
             // 
             this.lblMonitoringFiles.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
             this.lblMonitoringFiles.AutoSize = true;
-            this.lblMonitoringFiles.Location = new System.Drawing.Point(268, 365);
+            this.lblMonitoringFiles.Location = new System.Drawing.Point(268, 141);
             this.lblMonitoringFiles.Name = "lblMonitoringFiles";
             this.lblMonitoringFiles.Size = new System.Drawing.Size(10, 13);
             this.lblMonitoringFiles.TabIndex = 6;
@@ -138,7 +125,7 @@
             this.aboutToolStripMenuItem});
             this.menuStrip1.Location = new System.Drawing.Point(0, 0);
             this.menuStrip1.Name = "menuStrip1";
-            this.menuStrip1.Size = new System.Drawing.Size(627, 24);
+            this.menuStrip1.Size = new System.Drawing.Size(668, 24);
             this.menuStrip1.TabIndex = 7;
             this.menuStrip1.Text = "menuStrip1";
             // 
@@ -206,18 +193,31 @@
             this.aboutToolStripMenuItem.Text = "About...";
             this.aboutToolStripMenuItem.Click += new System.EventHandler(this.aboutToolStripMenuItem_Click);
             // 
+            // rtbIntel
+            // 
+            this.rtbIntel.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
+            | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.rtbIntel.BackColor = System.Drawing.SystemColors.Control;
+            this.rtbIntel.Location = new System.Drawing.Point(12, 27);
+            this.rtbIntel.Name = "rtbIntel";
+            this.rtbIntel.ScrollBars = System.Windows.Forms.RichTextBoxScrollBars.Vertical;
+            this.rtbIntel.Size = new System.Drawing.Size(644, 111);
+            this.rtbIntel.TabIndex = 8;
+            this.rtbIntel.Text = "";
+            // 
             // frmMain
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(627, 411);
+            this.ClientSize = new System.Drawing.Size(668, 187);
+            this.Controls.Add(this.rtbIntel);
             this.Controls.Add(this.lblMonitoringFiles);
             this.Controls.Add(this.label3);
             this.Controls.Add(this.lblFailed);
             this.Controls.Add(this.lblReported);
             this.Controls.Add(this.label2);
             this.Controls.Add(this.label1);
-            this.Controls.Add(this.txtIntel);
             this.Controls.Add(this.menuStrip1);
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.MainMenuStrip = this.menuStrip1;
@@ -236,7 +236,6 @@
 
         #endregion
 
-        private System.Windows.Forms.TextBox txtIntel;
         private System.Windows.Forms.Label label1;
         private System.Windows.Forms.Label label2;
         private System.Windows.Forms.Label lblReported;
@@ -253,6 +252,7 @@
         private System.Windows.Forms.ToolStripMenuItem mnuOutputVerbose;
         private System.Windows.Forms.ToolStripMenuItem optionsToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem mnuSetEveToBackground;
+        private System.Windows.Forms.RichTextBox rtbIntel;
     }
 }
 

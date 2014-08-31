@@ -23,17 +23,20 @@ namespace BraveIntelReporter
         long reported = 0;
         long failed = 0;
 
-        private DateTime LastIntelReported = DateTime.MinValue;
+        private enum STATE
+        {
+            INIT, RUNNING, STOPPED
+        };
 
         private STATE state = STATE.INIT;
-        private System.Timers.Timer timerEveProcessCheck = new System.Timers.Timer();
+        private System.Timers.Timer timerConfigCheck = new System.Timers.Timer();
         private System.Timers.Timer timerFileDiscover = new System.Timers.Timer();
         private System.Timers.Timer timerFileReader = new System.Timers.Timer();
-        private System.Timers.Timer timerConfigCheck = new System.Timers.Timer();
-        private bool eveRunningLast = false;
+
         private Dictionary<String, FileInfo> roomToFile = new Dictionary<String, FileInfo>();
-        private Dictionary<String, String> roomToLastLine = new Dictionary<String, String>();
-        private Dictionary<FileInfo, long> fileToOffset = new Dictionary<FileInfo, long>();
+        private Dictionary<String, DateTime> roomToLastUpdate = new Dictionary<String, DateTime>();
+        private Dictionary<String, long> fileToOffset = new Dictionary<String, long>();
+
         private static Object readerLock = new Object(); // Ensures that only one thread can read files at a time.
 
         #region SetEveToBackground
@@ -139,154 +142,10 @@ namespace BraveIntelReporter
         }
         #endregion
 
-        enum STATE
-        {
-            INIT, START, RUNNING, DOWNTIME, STOP
-        };
-
-        private Boolean isEveRunning()
-        {
-            return (Process.GetProcesses().Where(p => p.ProcessName.ToLower() == "exefile").ToList().Count() != 0);
-        }
-
-        private void updateLatestIntelFiles()
-        {
-            if (LastIntelReported > (DateTime.Now.AddMilliseconds(-1 * timerFileDiscover.Interval))) return; //If intel has been reported recently, we don't need to recheck.
-            if (DateTime.UtcNow.TimeOfDay > new TimeSpan(10, 59, 00) && DateTime.UtcNow.TimeOfDay < new TimeSpan(11, 05, 00))
-            {
-                setState(STATE.DOWNTIME);
-                appendText("Downtime Detected.  Waiting for new chat logs to be created.");
-            }
-            if (state == STATE.RUNNING)
-            {
-                appendVerbose("Sending heartbeat.");
-                ReportIntel(string.Empty, "Running");
-            }
-            appendVerbose("Updating chatlog file list.");
-            string oldfiles = string.Empty;
-            foreach (FileInfo fi in roomToFile.Values)
-                oldfiles += fi.Name + ", ";
-
-            string report = string.Empty;
-            foreach (String roomName in Configuration.RoomsToMonitor)
-            {
-                Debug.WriteLine("KIU Checking for : " + roomName);
-
-                FileInfo[] files = new DirectoryInfo(Configuration.LogDirectory)
-                        .GetFiles(roomName + "_*.txt", SearchOption.TopDirectoryOnly);
-                FileInfo fi = files.OrderByDescending(f => f.LastWriteTime).FirstOrDefault();
-
-                if (fi == null)
-                {
-                    continue;
-                }
-
-                Debug.WriteLine("KIU Latest: " + fi);
-
-                // Check if eve has opened this file -> Eve is running and user has joined channel
-                Boolean inUse = false;
-                try
-                {
-                    FileStream fs = fi.Open(FileMode.Open, FileAccess.Read, FileShare.None);
-                    fs.Close();
-                }
-                catch
-                {
-                    inUse = true;
-                }
-
-                if (!inUse)
-                {
-                    Debug.WriteLine("KIU Skipping: " + fi);
-                    continue;
-                }
-
-                Debug.WriteLine("KIU Using: " + fi);
-                roomToFile[roomName] = fi;
-                report += fi.Name + "\r\n";
-            }
-
-            // Clear offset list of old files if necessary.
-            List<FileInfo> deletethese = new List<FileInfo>();
-            foreach (FileInfo fi in fileToOffset.Keys)
-                if (!roomToFile.ContainsValue(fi)) deletethese.Add(fi);
-            foreach (FileInfo fi in deletethese)
-                fileToOffset.Remove(fi);
-
-            // If a new file is created, recheck to make sure we have the most up to date log files.
-            FileSystemWatcher watcher = new FileSystemWatcher(Configuration.LogDirectory);
-            watcher.NotifyFilter = NotifyFilters.CreationTime;
-            watcher.Created += new FileSystemEventHandler(FileCreated);
-            watcher.EnableRaisingEvents = true;
-
-            string newfiles = string.Empty;
-            foreach (FileInfo fi in roomToFile.Values)
-                newfiles += fi.Name + ", ";
-            if (!newfiles.Equals(oldfiles))
-            {
-                if (newfiles.Length > 2) newfiles = newfiles.Substring(0, newfiles.Length - 2); // trim the last comma and space
-                if (oldfiles.Length > 2) oldfiles = oldfiles.Substring(0, oldfiles.Length - 2); // trim the last comma and space
-                if (state == STATE.RUNNING || state == STATE.DOWNTIME) appendText(string.Format("Intel Files Changed. Old Files: {0}, New Files: {1}", oldfiles, newfiles));
-                if (state == STATE.DOWNTIME) setState(STATE.START);
-            }
-            lblMonitoringFiles.Invoke(new MethodInvoker(() => lblMonitoringFiles.Text = report));
-        }
-
-        private void FileCreated(object sender, FileSystemEventArgs e)
-        {
-            appendVerbose("New File Detected: " + e.Name);
-            updateLatestIntelFiles();
-        }
-
-        private void setState(STATE nState)
-        {
-            if (state == nState)
-            {
-                return;
-            }
-
-            state = nState;
-            Debug.WriteLine("KIU STATE: " + nState);
-
-            if (STATE.START == nState)
-            {
-                execEveTimer(null, null);
-                execFileDiscoverTimer(null, null);
-                execFileReaderTimer(null, null);
-
-                timerFileDiscover.Start();
-                timerFileReader.Interval = Configuration.MonitorFrequency;
-                timerFileReader.Start();
-                ReportIntel(string.Empty, "start");
-                appendVerbose("EVE State Change.  Current State: " + Enum.GetName(typeof(STATE), state));
-                setState(STATE.RUNNING);
-            }
-            if (STATE.STOP == nState)
-            {
-                timerFileDiscover.Stop();
-                timerFileReader.Stop();
-                ReportIntel(string.Empty, "stop");
-                appendVerbose("EVE State Change.  Current State: " + Enum.GetName(typeof(STATE), state));
-            }
-            if (STATE.DOWNTIME == nState)
-            {
-                timerFileReader.Stop();
-                ReportIntel(string.Empty, "stop");
-                appendVerbose("EVE State Change.  Current State: " + Enum.GetName(typeof(STATE), state));
-            }
-        }
+        // ------------------------------------------------------------------------------
 
         private void init()
         {
-            timerEveProcessCheck.Elapsed += new ElapsedEventHandler(execEveTimer);
-            timerEveProcessCheck.Interval = 1000 * 60 * 1;
-            timerEveProcessCheck.Start();
-
-            timerFileDiscover.Elapsed += new ElapsedEventHandler(execFileDiscoverTimer);
-            timerFileDiscover.Interval = 1000 * 60 * 2;
-
-            timerFileReader.Elapsed += new ElapsedEventHandler(execFileReaderTimer);
-
             timerConfigCheck.Elapsed += new ElapsedEventHandler(execConfigCheckTimer);
             timerConfigCheck.Interval = Configuration.ConfigCheckFrequency * 1000 * 60;
 
@@ -296,39 +155,21 @@ namespace BraveIntelReporter
             mnuSetEveToBackground.Checked = Configuration.SetEveToBackground;
             mnuOutputVerbose.Checked = Configuration.Verbose;
             mnuOutputMinimal.Checked = !Configuration.Verbose;
+
+            timerFileDiscover.Elapsed += new ElapsedEventHandler(tickFileDiscover);
+            timerFileDiscover.Interval = 1000 * 60 * 1;
+            timerFileDiscover.Start();
+
+            timerFileReader.Elapsed += new ElapsedEventHandler(tickFileReader);
+            timerFileReader.Interval = 1000 * 2;
+            timerFileReader.Start();
+
+            tickFileDiscover(null, null);
         }
 
-        private void execEveTimer(object sender, EventArgs e)
-        {
-            Boolean eveRunning = isEveRunning();
-            if (eveRunning == eveRunningLast)
-            {
-                return;
-            }
-            eveRunningLast = eveRunning;
-            if (eveRunning)
-            {
-                setState(STATE.START);
-            }
-            else
-            {
-                setState(STATE.STOP);
-            }
-        }
+        // ------------------------------------------------------------------------------
 
-        private void execFileDiscoverTimer(object sender, EventArgs e)
-        {
-            updateLatestIntelFiles();
-        }
-
-        private void execConfigCheckTimer(object sender, EventArgs e)
-        {
-            string report = string.Empty;
-            Configuration.GetConfig(out report);
-            appendVerbose(report);
-        }
-
-        private void execFileReaderTimer(object sender, EventArgs e)
+        private void tickFileReader(object sender, EventArgs e)
         {
             if (!Monitor.TryEnter(readerLock))
             {
@@ -336,81 +177,265 @@ namespace BraveIntelReporter
                 return; // Ensures that only one thread can read files at a time.
             }
 
-            FileStream logFileStream;
-            StreamReader logFileReader;
+            foreach (String room in Configuration.RoomsToMonitor)
+            {
+                parseLatest(room);
+            }
 
-            String line;
+            Monitor.Exit(readerLock);
+        }
 
+        private void tickFileDiscover(object sender, EventArgs e)
+        {
+            findLatestIntelFiles();
+
+            DateTime last = DateTime.MinValue;
+            foreach (DateTime dt in roomToLastUpdate.Values)
+            {
+                if (dt > last)
+                {
+                    last = dt;
+                }
+            }
+
+            if (state == STATE.RUNNING && last < DateTime.Now.AddMinutes(-1))
+            {
+                appendVerbose(Color.DarkBlue, "Nothing happened, sending ping!");
+                sendStatus("ping");
+            }
+
+            if (state != STATE.STOPPED && roomToFile.Count() == 0)
+            {
+                state = STATE.STOPPED;
+                appendText(Color.DarkRed, "No active intel file found, sleeping... ");
+                sendStatus("stop");
+            }
+
+            if (state != STATE.RUNNING && roomToFile.Count() > 0)
+            {
+                state = STATE.RUNNING;
+                appendText(Color.DarkGreen, "Active intel file found, ready to upload intel...");
+                sendStatus("start");
+            }
+
+            string monitoring = string.Empty;
+            foreach (FileInfo fi in roomToFile.Values)
+            {
+                monitoring += fi.Name + ", ";
+            }
+            if (monitoring.Length > 2)
+            {
+                monitoring = monitoring.Substring(0, monitoring.Length - 2); // trim the last comma and space
+            }
+            lblMonitoringFiles.Invoke(new MethodInvoker(() => lblMonitoringFiles.Text = monitoring));
+        }
+
+        // ------------------------------------------------------------------------------
+
+        private void findLatestIntelFiles()
+        {
+            Debug.WriteLine("Checking for new logfiles.");
+            foreach (String room in Configuration.RoomsToMonitor)
+            {
+                DateTime last = DateTime.MinValue;
+                roomToLastUpdate.TryGetValue(room, out last);
+                if (last > DateTime.Now.AddMinutes(-1))
+                {
+                    Debug.WriteLine("Room " + room + " is up-to-date, skipping.");
+                    //continue;
+                }
+
+                FileInfo fiLast = null;
+                roomToFile.TryGetValue(room, out fiLast);
+                String fnLast = "";
+                if (fiLast != null)
+                {
+                    fnLast = fiLast.FullName;
+                }
+
+                FileInfo fiNew = findLatestIntelFile(room);
+                String fnNew = "";
+                if (fiNew != null)
+                {
+                    fnNew = fiNew.FullName;
+                }
+
+                if (fnLast != fnNew)
+                {
+                    roomToFile[room] = fiNew;
+                    fileToOffset.Remove(fnLast);
+                }
+            }
+        }
+
+        private FileInfo findLatestIntelFile(String room)
+        {
+            Debug.WriteLine("findLatestIntelFile: " + room);
+
+            FileInfo[] files = new DirectoryInfo(Configuration.LogDirectory)
+                    .GetFiles(room + "_*.txt", SearchOption.TopDirectoryOnly);
+            FileInfo fi = files.OrderByDescending(f => f.LastWriteTime).FirstOrDefault();
+
+            if (fi == null)
+            {
+                Debug.WriteLine("No logfile found, skipping room.");
+                return null;
+            }
+
+            Debug.WriteLine("Found logfile: " + fi);
+
+            // Check if eve has opened this file -> Eve is running and user has joined channel
             try
             {
-                foreach (String roomName in Configuration.RoomsToMonitor)
+                FileStream fs = fi.Open(FileMode.Open, FileAccess.Read, FileShare.None);
+                fs.Close();
+                Debug.WriteLine("Logfile is not used, skipping room.");
+                return null;
+            }
+            catch
+            {
+            }
+
+            Debug.WriteLine("Found active logfile: " + fi);
+            return fi;
+        }
+
+        private void parseLatest(string room)
+        {
+
+            FileInfo logfile = null;
+            roomToFile.TryGetValue(room, out logfile);
+            if (logfile == null)
+            {
+                return;
+            }
+
+            logfile.Refresh();
+
+            long offset = 0;
+            fileToOffset.TryGetValue(logfile.FullName, out offset);
+            Debug.WriteLine("Room " + room + " - length: " + logfile.Length.ToString() + " offset: " + offset.ToString());
+
+            if (offset == 0)
+            {
+                fileToOffset[logfile.FullName] = logfile.Length;
+                return;
+            }
+
+            if (offset == logfile.Length)
+            {
+                return;
+            }
+
+            StreamReader logFileReader = new StreamReader(new FileStream(logfile.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite));
+            logFileReader.BaseStream.Seek(offset, SeekOrigin.Begin);
+
+            String line;
+            while (!logFileReader.EndOfStream)
+            {
+                line = logFileReader.ReadLine();
+                if (line.Trim().Length == 0)
                 {
-                    FileInfo logfile = null;
-                    roomToFile.TryGetValue(roomName, out logfile);
+                    continue;
+                }
 
-                    if (logfile == null)
-                    {
-                        Debug.WriteLine("KIU Skipping room: " + roomName);
-                        continue;
-                    }
+                if (line.Length < 23)
+                {
+                    continue;
+                }
 
-                    long offset = 0;
-                    fileToOffset.TryGetValue(logfile, out offset);
+                sendIntel(line);
+                roomToLastUpdate[room] = DateTime.Now;
+            }
 
-                    logfile.Refresh();
-                    Debug.WriteLine("Offset: " + offset.ToString());
-                    Debug.WriteLine("File Length: " + logfile.Length.ToString());
-                    if (offset != 0 && logfile.Length == offset) continue; // No new data in file
-                    logFileStream = new FileStream(logfile.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                    logFileReader = new StreamReader(logFileStream);
-                    logFileReader.BaseStream.Seek(offset, SeekOrigin.Begin);
+            fileToOffset[logfile.FullName] = logfile.Length;
+            logFileReader.Close();
+        }
 
-                    while (!logFileReader.EndOfStream)
-                    {
-                        line = logFileReader.ReadLine();
-                        if (line.Trim().Length == 0)
-                        {
-                            continue;
-                        }
+        // ------------------------------------------------------------------------------
 
-                        //line = line.Remove(0, 1);
-                        if (line.Length < 23) continue;
-                        DateTime utcTimeOfLine = DateTime.MinValue;
-                        if (!DateTime.TryParse(line.Substring(2, 19), out utcTimeOfLine)) continue;
-                        Double minutesFromNow = Math.Abs(DateTime.UtcNow.Subtract(utcTimeOfLine).TotalMinutes);
-                        if (minutesFromNow > 2) continue;
-                        appendText(line);
-                        ReportIntel(line);
-                        LastIntelReported = DateTime.Now;
-                    }
-                    offset = logfile.Length;
-                    if (fileToOffset.ContainsKey(logfile)) fileToOffset[logfile] = offset;
-                    else fileToOffset.Add(logfile, offset);
+        private void sendIntel(string line)
+        {
+            line = line.Replace('"', '\'');
+            appendText(Color.Black, line);
+            send(new ReportLine(line, "running"));
+        }
 
-                    // Clean up
-                    logFileReader.Close();
-                    logFileStream.Close();
-                } // foreach
-            } // try
+        private void sendStatus(string status)
+        {
+            send(new ReportLine("", status));
+        }
+
+        private void send(ReportLine rl)
+        {
+            Encoding myEncoding = System.Text.UTF8Encoding.UTF8;
+            WebClient client = new WebClient();
+            try
+            {
+                client.UploadData(Configuration.ReportServer, "PUT", myEncoding.GetBytes(rl.ToJson()));
+                reported++;
+            }
+            catch (WebException ex)
+            {
+                HttpWebResponse hwr = (HttpWebResponse)ex.Response;
+                failed++;
+
+                if (hwr.StatusCode == HttpStatusCode.Unauthorized)
+                {
+                    appendText(Color.Red, "Authorization Token Invalid.  Try refreshing your auth token in settings.\r\n");
+                }
+                else if (hwr.StatusCode == HttpStatusCode.UpgradeRequired)
+                {
+                    appendText(Color.Red, "Client version not supported.  Please close and restart application to update. (May require two restarts.)\r\n");
+                }
+                else if (hwr.StatusCode == HttpStatusCode.InternalServerError)
+                {
+                    appendText(Color.Red, "The server is confused right now, should be resolved soon.\r\n");
+                }
+                else
+                {
+                    appendText(Color.Red, string.Format("Unknown error ocured: {0} {1}\r\n", hwr.StatusCode, ex.Message));
+                }
+            }
             catch (Exception ex)
             {
-                appendText(string.Format("Intel Server Error: {0}\r\n", ex.Message));
+                appendText(Color.Red, string.Format("Unknown error ocured: {0}\r\n", ex.Message));
             }
-            finally { Monitor.Exit(readerLock); }
+
+            lblReported.Invoke(new MethodInvoker(() => lblReported.Text = reported.ToString()));
+            lblFailed.Invoke(new MethodInvoker(() => lblFailed.Text = failed.ToString()));
         }
 
-        private void appendText(String line)
+        // ------------------------------------------------------------------------------
+
+        private void appendText(Color c, String line)
         {
-            Debug.WriteLine("KIU append: " + line);
-            this.txtIntel.Invoke(new MethodInvoker(() => this.txtIntel.AppendText(line + "\r\n")));
+            Debug.WriteLine("I: " + line);
+            this.rtbIntel.Invoke(new MethodInvoker(() => this.rtbIntel.SelectionColor = c));
+            this.rtbIntel.Invoke(new MethodInvoker(() => this.rtbIntel.AppendText(line + "\r\n")));
         }
 
-        private void appendVerbose(string line)
+        private void appendVerbose(Color c, string line)
         {
-            Debug.WriteLine("KIU verbose: " + line);
+            Debug.WriteLine("V: " + line);
             if (Configuration.Verbose)
-                this.txtIntel.Invoke(new MethodInvoker(() => this.txtIntel.AppendText(line + "\r\n")));
+            {
+                this.rtbIntel.Invoke(new MethodInvoker(() => this.rtbIntel.SelectionColor = c));
+                this.rtbIntel.Invoke(new MethodInvoker(() => this.rtbIntel.AppendText(line + "\r\n")));
+            }
         }
+
+        // ------------------------------------------------------------------------------
+
+        private void execConfigCheckTimer(object sender, EventArgs e)
+        {
+            string report = string.Empty;
+            Configuration.GetConfig(out report);
+            appendVerbose(Color.DarkGreen, report);
+        }
+
+        // ------------------------------------------------------------------------------
+
         public frmMain()
         {
             InitializeComponent();
@@ -426,8 +451,8 @@ namespace BraveIntelReporter
                 haveglobalsettings = Configuration.GetConfig(out report);
                 if (!haveglobalsettings)
                 {
-                    appendText(report);
-                    appendText("Waiting 30 seconds and retrying.");
+                    appendText(Color.DarkOrange, report);
+                    appendText(Color.DarkOrange, "Waiting 30 seconds and retrying.");
                     for (int i = 1; i < 300; i++) // A lazy way of waiting 30 seconds but keeping the UI responsive without multithreading. 
                     {
                         Application.DoEvents();
@@ -442,37 +467,6 @@ namespace BraveIntelReporter
             }
             init();
 
-            setState(STATE.START);
-
-        }
-
-        private void ReportIntel(string lastline, string status = "")
-        {
-            Encoding myEncoding = System.Text.UTF8Encoding.UTF8;
-            WebClient client = new WebClient();
-            try
-            {
-                if (lastline.Contains("EVE System > Channel MOTD:")) return;
-                lastline = lastline.Replace('"', '\'');
-                string postMessage = new ReportLine(lastline, status).ToJson();
-
-                byte[] KiuResponse = client.UploadData(Configuration.ReportServer, "PUT", myEncoding.GetBytes(postMessage));
-
-                if (myEncoding.GetString(KiuResponse) == "OK\n") reported++;
-            }
-            catch (Exception ex)
-            {
-                failed++;
-                if (ex.Message == "The remote server returned an error: (401) Unauthorized.")
-                    appendText("Authorization Token Invalid.  Try refreshing your auth token in settings.\r\n");
-                else if (ex.Message == "The remote server returned an error: (426) 426.")
-                    appendText("Client version not supported.  Please close and restart application to update. (May require two restarts.)\r\n");
-                else
-                    appendText(string.Format("Intel Server Error: {0}\r\n", ex.Message));
-                Debug.Write(string.Format("Exception: {0}", ex.Message));
-            }
-            lblReported.Invoke(new MethodInvoker(() => lblReported.Text = reported.ToString()));
-            lblFailed.Invoke(new MethodInvoker(() => lblFailed.Text = failed.ToString()));
         }
 
         private void frmMain_Resize(object sender, EventArgs e)
@@ -516,7 +510,8 @@ namespace BraveIntelReporter
 
         private void frmMain_FormClosed(object sender, FormClosedEventArgs e)
         {
-            ReportIntel(string.Empty, "stop");
+            appendText(Color.Red, "Shutting down...");
+            sendStatus("stop");
         }
 
         private void optionsToolStripMenuItem_Click(object sender, EventArgs e)
